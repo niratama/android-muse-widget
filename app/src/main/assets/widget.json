@@ -1,0 +1,31 @@
+{
+  "updated_at": "2026-01-01T08:00:00+09:00",
+  "date": "2026-01-01",
+  "sleep": {
+    "duration_min": 420,
+    "score": 85,
+    "deep_min": 180,
+    "rem_min": 120,
+    "end_time": "07:00"
+  },
+  "weight": {
+    "kg": 65.0,
+    "delta_kg": 0.0
+  },
+  "weather": {
+    "area": "サンプル市",
+    "summary": "晴れ",
+    "max_c": 18,
+    "min_c": 10,
+    "rain_pct": 10
+  },
+  "today": {
+    "count": 1,
+    "next": {
+      "time": "10:00",
+      "title": "予定サンプル"
+    }
+  },
+  "today_garbage": "可燃ごみ",
+  "tomorrow_garbage": "資源ごみ"
+}

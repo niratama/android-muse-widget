@@ -1,0 +1,18 @@
+<resources>
+    <color name="primary">#1E40AF</color>
+    <color name="primary_variant">#1D4ED8</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="background">#F8FAFC</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="on_surface">#0F172A</color>
+
+    <!-- Widget specific colors (Light) -->
+    <color name="widget_background">#FFFFFF</color>
+    <color name="widget_border">#E2E8F0</color>
+    <color name="widget_text_primary">#0F172A</color>
+    <color name="widget_text_secondary">#334155</color>
+    <color name="widget_text_muted">#64748B</color>
+    <color name="widget_warning">#DC2626</color>
+    <color name="widget_accent">#2563EB</color>
+    <color name="widget_btn_bg">#F1F5F9</color>
+</resources>

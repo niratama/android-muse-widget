@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Goma Widget</string>
+    <string name="widget_name">Goma Widget</string>
+    <string name="widget_description">Google Driveから最新のアシスタント情報を表示するウィジェット</string>
+    <string name="sign_in_with_google">Googleでサインイン</string>
+    <string name="sign_out">サインアウト</string>
+    <string name="status_not_signed_in">Googleアカウントが未連携です。サインインしてください。</string>
+    <string name="status_signed_in">サインイン中: %1$s</string>
+    <string name="sync_now">Driveから今すぐ取得してテスト</string>
+    <string name="syncing">取得中…</string>
+    <string name="sync_success">取得成功！ウィジェットが更新されました。</string>
+    <string name="sync_failed">取得失敗: %1$s</string>
+    <string name="drive_scope_notice">Google Driveの goma_widget/widget.json を読み取る権限を使用します。</string>
+    <string name="widget_tap_to_refresh">タップで即時更新</string>
+    <string name="widget_updating">更新中…</string>
+    <string name="widget_please_login">Googleアカウント未連携。タップしてアプリを開き、サインインしてください。</string>
+    <string name="widget_no_data">データがまだありません。ウィジェットをタップして更新してください。</string>
+    <string name="old_data_warning">⚠️ 24時間以上前のデータです（更新: %1$s）</string>
+</resources>
