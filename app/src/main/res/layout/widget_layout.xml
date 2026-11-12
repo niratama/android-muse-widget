@@ -17,11 +17,13 @@
         android:visibility="gone" />
 
     <!-- 2. グラデーションスクリム層（文字の視認性保護：左から右へ自然に透過） -->
-    <View
+    <ImageView
         android:id="@+id/widget_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@drawable/widget_gradient_scrim"
+        android:contentDescription="@null"
+        android:importantForAccessibility="no"
         android:visibility="gone" />
 
     <!-- 3. 前景コンテンツ（データ表示・クリックホットスポット） -->
