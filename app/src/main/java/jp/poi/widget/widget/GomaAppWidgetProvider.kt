@@ -55,30 +55,36 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
     private fun launchMuseApp(context: Context) {
         val repository = WidgetRepository.getInstance(context)
         val packageName = repository.getMusePackageName()
-
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
-        if (launchIntent != null) {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-            context.startActivity(launchIntent)
-        } else {
+        val intent = createMuseLaunchIntent(context, packageName)
+        try {
+            context.startActivity(intent)
+        } catch (e: Exception) {
             Toast.makeText(context, context.getString(R.string.muse_app_not_found), Toast.LENGTH_SHORT).show()
-            try {
-                val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(marketIntent)
-            } catch (e: Exception) {
-                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(webIntent)
-            }
         }
     }
 
     companion object {
         const val ACTION_REFRESH = "jp.poi.widget.ACTION_REFRESH"
         const val ACTION_LAUNCH_MUSE = "jp.poi.widget.ACTION_LAUNCH_MUSE"
+
+        fun createMuseLaunchIntent(context: Context, packageName: String): Intent {
+            var intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent == null && packageName == "com.facebook.aura") {
+                // 明示的コンポーネント指定でのフォールバック
+                intent = Intent(Intent.ACTION_MAIN).apply {
+                    component = ComponentName("com.facebook.aura", "com.facebook.aura.main.AuraMainActivity")
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                }
+            }
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                return intent
+            }
+            // 未インストール時のストアフォールバック
+            return Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -111,14 +117,12 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // 2. Muse アプリを起動する PendingIntent
-            val museIntent = Intent(context, GomaAppWidgetProvider::class.java).apply {
-                action = ACTION_LAUNCH_MUSE
-            }
-            val musePendingIntent = PendingIntent.getBroadcast(
+            // 2. Muse アプリを起動する PendingIntent (アクティビティを直接起動)
+            val museLaunchIntent = createMuseLaunchIntent(context, repository.getMusePackageName())
+            val musePendingIntent = PendingIntent.getActivity(
                 context,
                 appWidgetId + 2000,
-                museIntent,
+                museLaunchIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
@@ -137,14 +141,13 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_bg_image, View.VISIBLE)
                 views.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
                 views.setImageViewBitmap(R.id.widget_bg_image, gomaBitmap)
-                // イラスト部分のタップで Muse アプリ起動
-                views.setViewVisibility(R.id.widget_muse_hotspot, View.VISIBLE)
-                views.setOnClickPendingIntent(R.id.widget_muse_hotspot, musePendingIntent)
             } else {
                 views.setViewVisibility(R.id.widget_bg_image, View.GONE)
                 views.setViewVisibility(R.id.widget_scrim, View.GONE)
-                views.setViewVisibility(R.id.widget_muse_hotspot, View.GONE)
             }
+            // 右側イラスト／ホットスポット領域のタップで Muse アプリ起動
+            views.setViewVisibility(R.id.widget_muse_hotspot, View.VISIBLE)
+            views.setOnClickPendingIntent(R.id.widget_muse_hotspot, musePendingIntent)
 
             if (latestData == null && account == null) {
                 // 未ログインかつデータ無し
