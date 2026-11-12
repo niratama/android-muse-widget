@@ -22,7 +22,7 @@ class WidgetRepository(private val context: Context) {
         private const val KEY_MUSE_PACKAGE_NAME = "key_muse_package_name"
         private const val GOMA_IMAGE_FILENAME = "goma.png"
 
-        const val DEFAULT_MUSE_PACKAGE = "com.choosemuse.muse"
+        const val DEFAULT_MUSE_PACKAGE = "com.facebook.aura"
 
         @Volatile
         private var instance: WidgetRepository? = null
@@ -150,7 +150,12 @@ class WidgetRepository(private val context: Context) {
     // --- Muse アプリ設定 ---
 
     fun getMusePackageName(): String {
-        return prefs.getString(KEY_MUSE_PACKAGE_NAME, DEFAULT_MUSE_PACKAGE) ?: DEFAULT_MUSE_PACKAGE
+        val saved = prefs.getString(KEY_MUSE_PACKAGE_NAME, null)
+        return if (saved == null || saved == "com.choosemuse.muse") {
+            DEFAULT_MUSE_PACKAGE
+        } else {
+            saved
+        }
     }
 
     fun setMusePackageName(packageName: String) {
