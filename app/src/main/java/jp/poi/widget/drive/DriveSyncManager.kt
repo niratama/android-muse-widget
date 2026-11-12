@@ -22,6 +22,7 @@ object DriveSyncManager {
     private const val TAG = "DriveSyncManager"
     const val FOLDER_NAME = "goma_widget"
     const val FILE_NAME = "widget.json"
+    const val IMAGE_NAME = "goma.png"
 
     sealed class SyncResult {
         data class Success(val data: WidgetData) : SyncResult()
@@ -101,14 +102,65 @@ object DriveSyncManager {
                 return@withContext SyncResult.Error(notFoundMsg, FileNotFoundException(notFoundMsg))
             }
 
-            // 3. ファイルの内容をダウンロード
+            // 3. widget.json の内容をダウンロードして保存
             val outputStream = ByteArrayOutputStream()
             driveService.files().get(targetFile.id).executeMediaAndDownloadTo(outputStream)
             val jsonContent = outputStream.toString("UTF-8")
 
-            // 4. パースしてリポジトリに保存
             val widgetData = WidgetDataParser.parse(jsonContent)
             repository.saveSuccess(jsonContent)
+
+            // 4. goma.png の検索 & 差分ダウンロード（存在する場合のみ、更新日時で差分取得）
+            try {
+                val imageQuery = if (folderId != null) {
+                    "name = '$IMAGE_NAME' and '$folderId' in parents and trashed = false"
+                } else {
+                    "name = '$IMAGE_NAME' and trashed = false"
+                }
+
+                var imageList = driveService.files().list()
+                    .setQ(imageQuery)
+                    .setSpaces("drive")
+                    .setFields("files(id, name, modifiedTime)")
+                    .setOrderBy("modifiedTime desc")
+                    .execute()
+
+                var targetImage = imageList.files?.firstOrNull()
+
+                if (targetImage == null && folderId != null) {
+                    // フォールバック検索
+                    val fallbackImgQuery = "name = '$IMAGE_NAME' and trashed = false"
+                    imageList = driveService.files().list()
+                        .setQ(fallbackImgQuery)
+                        .setSpaces("drive")
+                        .setFields("files(id, name, modifiedTime)")
+                        .setOrderBy("modifiedTime desc")
+                        .execute()
+                    targetImage = imageList.files?.firstOrNull()
+                }
+
+                if (targetImage != null) {
+                    val remoteModifiedTime = targetImage.modifiedTime?.value ?: 0L
+                    val localModifiedTime = repository.getGomaImageModifiedTime()
+
+                    if (remoteModifiedTime == 0L || remoteModifiedTime != localModifiedTime || !repository.hasGomaImage()) {
+                        Log.i(TAG, "Downloading goma.png (modifiedTime: $remoteModifiedTime)")
+                        driveService.files().get(targetImage.id).executeMediaAsInputStream().use { inStream ->
+                            repository.saveGomaImage(inStream, remoteModifiedTime)
+                        }
+                    } else {
+                        Log.i(TAG, "goma.png is up to date, skipping download")
+                    }
+                } else {
+                    // Drive 上に画像が見つからない場合は、ローカルキャッシュも削除して非表示にする
+                    if (repository.hasGomaImage()) {
+                        repository.deleteGomaImage()
+                    }
+                }
+            } catch (imgEx: Exception) {
+                // 画像取得の例外は JSON の更新成功を阻害しないようログのみ
+                Log.w(TAG, "Failed to sync goma.png: ${imgEx.message}")
+            }
 
             // 5. ウィジェットを即時更新
             GomaAppWidgetProvider.updateAllWidgets(context)

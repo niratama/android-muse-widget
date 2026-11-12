@@ -6,8 +6,10 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
+import android.widget.Toast
 import jp.poi.widget.MainActivity
 import jp.poi.widget.R
 import jp.poi.widget.data.WidgetData
@@ -38,14 +40,45 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        if (ACTION_REFRESH == intent.action) {
-            // タップ即時更新
-            GomaSyncWorker.enqueueImmediateSync(context)
+        when (intent.action) {
+            ACTION_REFRESH -> {
+                // タップ即時更新
+                GomaSyncWorker.enqueueImmediateSync(context)
+            }
+            ACTION_LAUNCH_MUSE -> {
+                // Muse アプリの起動
+                launchMuseApp(context)
+            }
+        }
+    }
+
+    private fun launchMuseApp(context: Context) {
+        val repository = WidgetRepository.getInstance(context)
+        val packageName = repository.getMusePackageName()
+
+        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent != null) {
+            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            context.startActivity(launchIntent)
+        } else {
+            Toast.makeText(context, context.getString(R.string.muse_app_not_found), Toast.LENGTH_SHORT).show()
+            try {
+                val marketIntent = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(marketIntent)
+            } catch (e: Exception) {
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=$packageName")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(webIntent)
+            }
         }
     }
 
     companion object {
         const val ACTION_REFRESH = "jp.poi.widget.ACTION_REFRESH"
+        const val ACTION_LAUNCH_MUSE = "jp.poi.widget.ACTION_LAUNCH_MUSE"
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context)
@@ -67,7 +100,7 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
             val latestData = repository.getLatestData()
             val isSyncing = repository.isSyncing()
 
-            // タップで即時再取得する PendingIntent
+            // 1. タップで即時再取得する PendingIntent
             val refreshIntent = Intent(context, GomaAppWidgetProvider::class.java).apply {
                 action = ACTION_REFRESH
             }
@@ -78,14 +111,40 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // アプリ起動用 PendingIntent (未ログイン時など)
+            // 2. Muse アプリを起動する PendingIntent
+            val museIntent = Intent(context, GomaAppWidgetProvider::class.java).apply {
+                action = ACTION_LAUNCH_MUSE
+            }
+            val musePendingIntent = PendingIntent.getBroadcast(
+                context,
+                appWidgetId + 2000,
+                museIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            // 3. アプリ設定起動用 PendingIntent (未ログイン時など)
             val appIntent = Intent(context, MainActivity::class.java)
             val appPendingIntent = PendingIntent.getActivity(
                 context,
-                appWidgetId,
+                appWidgetId + 3000,
                 appIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
+
+            // --- 背景画像 (goma.png) の設定 ---
+            val gomaBitmap = repository.getGomaBitmap()
+            if (gomaBitmap != null) {
+                views.setViewVisibility(R.id.widget_bg_image, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_scrim, View.VISIBLE)
+                views.setImageViewBitmap(R.id.widget_bg_image, gomaBitmap)
+                // イラスト部分のタップで Muse アプリ起動
+                views.setViewVisibility(R.id.widget_muse_hotspot, View.VISIBLE)
+                views.setOnClickPendingIntent(R.id.widget_muse_hotspot, musePendingIntent)
+            } else {
+                views.setViewVisibility(R.id.widget_bg_image, View.GONE)
+                views.setViewVisibility(R.id.widget_scrim, View.GONE)
+                views.setViewVisibility(R.id.widget_muse_hotspot, View.GONE)
+            }
 
             if (latestData == null && account == null) {
                 // 未ログインかつデータ無し
@@ -142,7 +201,8 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
                     views.setViewVisibility(R.id.widget_old_warning, View.GONE)
                 }
 
-                // ウィジェット全体タップで即時再取得
+                // 左側のデータ部分をタップしたときは即時再取得
+                views.setOnClickPendingIntent(R.id.widget_content_container, refreshPendingIntent)
                 views.setOnClickPendingIntent(R.id.widget_root, refreshPendingIntent)
             }
 
@@ -160,7 +220,7 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_footer_status, statusText)
             }
 
-            // 更新ボタンタップ時も即時更新
+            // 右下の更新アイコンをタップしたときも即時更新
             views.setOnClickPendingIntent(R.id.widget_btn_refresh, refreshPendingIntent)
 
             appWidgetManager.updateAppWidget(appWidgetId, views)

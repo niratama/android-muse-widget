@@ -198,7 +198,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:lineSpacingExtra="4dp"
-                    android:text="1. ホーム画面の空いている場所を長押しします。\n2. 「ウィジェット」を選択し、「Goma Widget」を探します。\n3. ウィジェットを長押ししてホーム画面の好きな場所に配置します。\n4. ウィジェットをタップするといつでも即時再取得できます（1時間ごとの自動更新も動作します）。"
+                    android:text="1. ホーム画面の空いている場所を長押しします。\n2. 「ウィジェット」を選択し、「Goma Widget」（5x2サイズ）を探します。\n3. ウィジェットを長押ししてホーム画面に配置します。\n4. 左側のテキストまたは更新アイコンをタップすると即時再取得します。\n5. 右側のイラストをタップすると Muse アプリを起動できます。"
                     android:textColor="@color/widget_text_secondary"
                     android:textSize="12.5sp" />
 

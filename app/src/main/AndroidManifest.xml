@@ -28,6 +28,7 @@
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
                 <action android:name="jp.poi.widget.ACTION_REFRESH" />
+                <action android:name="jp.poi.widget.ACTION_LAUNCH_MUSE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

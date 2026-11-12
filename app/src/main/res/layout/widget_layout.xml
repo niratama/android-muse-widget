@@ -1,125 +1,175 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/widget_background"
-    android:orientation="vertical"
-    android:paddingStart="14dp"
-    android:paddingTop="10dp"
-    android:paddingEnd="14dp"
-    android:paddingBottom="10dp">
+    android:background="@drawable/widget_background">
 
-    <!-- データ表示コンテナ -->
-    <LinearLayout
-        android:id="@+id/widget_content_container"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center_vertical"
-        android:orientation="vertical">
-
-        <!-- 1行目: 日付・天気 -->
-        <TextView
-            android:id="@+id/widget_line_weather"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="11/10（火） 川口 雨のち曇 13/9℃ 雨60%"
-            android:textColor="@color/widget_text_primary"
-            android:textSize="13.5sp"
-            android:textStyle="bold" />
-
-        <!-- 2行目: 睡眠 -->
-        <TextView
-            android:id="@+id/widget_line_sleep"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="睡眠 6時間33分 スコア82（深い 3:10 / REM 2:29）"
-            android:textColor="@color/widget_text_secondary"
-            android:textSize="12.5sp" />
-
-        <!-- 3行目: 体重（欠けている日は GONE） -->
-        <TextView
-            android:id="@+id/widget_line_weight"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:text="体重 77.0kg（前日比 +0.8）"
-            android:textColor="@color/widget_text_secondary"
-            android:textSize="12.5sp" />
-
-        <!-- 4行目: 予定 & ゴミ収集 -->
-        <TextView
-            android:id="@+id/widget_line_schedule_garbage"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:maxLines="2"
-            android:text="予定 0件 ／ 今日のゴミ: 一般・有害ごみ ／ 明日: プラスチック製容器包装"
-            android:textColor="@color/widget_text_secondary"
-            android:textSize="12.5sp" />
-
-    </LinearLayout>
-
-    <!-- 未ログイン／初期状態用メッセージ -->
-    <TextView
-        android:id="@+id/widget_empty_text"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:gravity="center"
-        android:text="@string/widget_please_login"
-        android:textColor="@color/widget_text_muted"
-        android:textSize="12sp"
+    <!-- 1. 背景イラスト画像（右寄せ表示、Driveにgoma.pngが存在する場合のみ表示） -->
+    <ImageView
+        android:id="@+id/widget_bg_image"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="end|center_vertical"
+        android:adjustViewBounds="true"
+        android:contentDescription="@string/app_name"
+        android:scaleType="fitEnd"
         android:visibility="gone" />
 
-    <!-- フッター部: 24時間以上経過時の警告 & 同期状態 -->
+    <!-- 2. グラデーションスクリム層（文字の視認性保護：左から右へ自然に透過） -->
+    <View
+        android:id="@+id/widget_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/widget_gradient_scrim"
+        android:visibility="gone" />
+
+    <!-- 3. 前景コンテンツ（データ表示・クリックホットスポット） -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="10dp">
 
-        <!-- 24時間経過警告（古いデータの場合のみ表示） -->
-        <TextView
-            android:id="@+id/widget_old_warning"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
+        <!-- メイン行: 左側にデータ、右側にMuseアプリ起動ホットスポット -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
             android:layout_weight="1"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@color/widget_warning"
-            android:textSize="10.5sp"
-            android:textStyle="bold"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- データ表示エリア（タップで即時再取得） -->
+            <LinearLayout
+                android:id="@+id/widget_content_container"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
+
+                <!-- 1行目: 日付・天気 -->
+                <TextView
+                    android:id="@+id/widget_line_weather"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="11/10（火） サンプル 晴れのち曇 18/10℃ 雨20%"
+                    android:textColor="@color/widget_text_primary"
+                    android:textSize="13.5sp"
+                    android:textStyle="bold" />
+
+                <!-- 2行目: 睡眠 -->
+                <TextView
+                    android:id="@+id/widget_line_sleep"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="睡眠 6時間33分 スコア82（深い 3:10 / REM 2:29）"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="12.5sp" />
+
+                <!-- 3行目: 体重（欠けている日は GONE） -->
+                <TextView
+                    android:id="@+id/widget_line_weight"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="体重 65.0kg（前日比 +0.5）"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="12.5sp" />
+
+                <!-- 4行目: 予定 & ゴミ収集 -->
+                <TextView
+                    android:id="@+id/widget_line_schedule_garbage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:text="予定 0件 ／ 今日のゴミ: 可燃ごみ ／ 明日: 資源ごみ"
+                    android:textColor="@color/widget_text_secondary"
+                    android:textSize="12.5sp" />
+
+            </LinearLayout>
+
+            <!-- 右側: Museアプリ起動用ホットスポット領域 -->
+            <FrameLayout
+                android:id="@+id/widget_muse_hotspot"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="8dp"
+                android:clickable="true"
+                android:contentDescription="@string/muse_launch_hint"
+                android:minWidth="90dp"
+                android:visibility="gone">
+
+                <!-- ホットスポット領域（イラスト上をタップしてMuse起動） -->
+            </FrameLayout>
+
+        </LinearLayout>
+
+        <!-- 未ログイン／初期状態用メッセージ -->
+        <TextView
+            android:id="@+id/widget_empty_text"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/widget_please_login"
+            android:textColor="@color/widget_text_muted"
+            android:textSize="12sp"
             android:visibility="gone" />
 
-        <!-- 最終取得時刻または更新中テキスト -->
-        <TextView
-            android:id="@+id/widget_footer_status"
-            android:layout_width="wrap_content"
+        <!-- フッター部: 24時間以上経過時の警告 & 同期状態 -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:textColor="@color/widget_text_muted"
-            android:textSize="10sp" />
+            android:layout_marginTop="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <!-- 更新アイコン -->
-        <ImageView
-            android:id="@+id/widget_btn_refresh"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:layout_marginStart="4dp"
-            android:contentDescription="@string/widget_tap_to_refresh"
-            android:src="@drawable/ic_refresh" />
+            <!-- 24時間経過警告（古いデータの場合のみ表示） -->
+            <TextView
+                android:id="@+id/widget_old_warning"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/widget_warning"
+                android:textSize="10.5sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
+            <!-- 最終取得時刻または更新中テキスト -->
+            <TextView
+                android:id="@+id/widget_footer_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:textColor="@color/widget_text_muted"
+                android:textSize="10sp" />
+
+            <!-- 更新アイコン -->
+            <ImageView
+                android:id="@+id/widget_btn_refresh"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="6dp"
+                android:contentDescription="@string/widget_tap_to_refresh"
+                android:src="@drawable/ic_refresh" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
-</LinearLayout>
+</FrameLayout>

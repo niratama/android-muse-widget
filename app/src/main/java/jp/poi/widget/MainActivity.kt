@@ -53,6 +53,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var previewOldWarning: TextView
     private lateinit var previewFooterStatus: TextView
     private lateinit var previewBtnRefresh: ImageView
+    private lateinit var previewBgImage: ImageView
+    private lateinit var previewScrim: View
+    private lateinit var previewMuseHotspot: View
 
     private val signInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -118,6 +121,9 @@ class MainActivity : AppCompatActivity() {
         previewOldWarning = previewRoot.findViewById(R.id.widget_old_warning)
         previewFooterStatus = previewRoot.findViewById(R.id.widget_footer_status)
         previewBtnRefresh = previewRoot.findViewById(R.id.widget_btn_refresh)
+        previewBgImage = previewRoot.findViewById(R.id.widget_bg_image)
+        previewScrim = previewRoot.findViewById(R.id.widget_scrim)
+        previewMuseHotspot = previewRoot.findViewById(R.id.widget_muse_hotspot)
 
         btnSignIn.setOnClickListener {
             val signInIntent = googleSignInClient.signInIntent
@@ -139,6 +145,20 @@ class MainActivity : AppCompatActivity() {
         previewBtnRefresh.setOnClickListener {
             triggerSync()
         }
+
+        previewMuseHotspot.setOnClickListener {
+            launchMuseApp()
+        }
+    }
+
+    private fun launchMuseApp() {
+        val packageName = repository.getMusePackageName()
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+        if (launchIntent != null) {
+            startActivity(launchIntent)
+        } else {
+            Toast.makeText(this, getString(R.string.muse_app_not_found), Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun updateUI(account: GoogleSignInAccount?) {
@@ -159,7 +179,8 @@ class MainActivity : AppCompatActivity() {
         if (lastTime > 0) {
             val sdf = SimpleDateFormat("yyyy/MM/dd HH:mm:ss", Locale.JAPAN)
             val timeStr = sdf.format(Date(lastTime))
-            tvSyncStatus.text = "最終同期: $timeStr\nステータス: ${lastStatus ?: "不明"}"
+            val hasImg = if (repository.hasGomaImage()) "（画像あり）" else ""
+            tvSyncStatus.text = "最終同期: $timeStr\nステータス: ${lastStatus ?: "不明"} $hasImg"
         } else {
             tvSyncStatus.text = "同期はまだ実行されていません。"
         }
@@ -168,6 +189,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updatePreview(data: WidgetData?) {
+        // 画像プレビュー表示
+        val gomaBitmap = repository.getGomaBitmap()
+        if (gomaBitmap != null) {
+            previewBgImage.visibility = View.VISIBLE
+            previewScrim.visibility = View.VISIBLE
+            previewBgImage.setImageBitmap(gomaBitmap)
+            previewMuseHotspot.visibility = View.VISIBLE
+        } else {
+            previewBgImage.visibility = View.GONE
+            previewScrim.visibility = View.GONE
+            previewMuseHotspot.visibility = View.GONE
+        }
+
         if (data == null) {
             previewContainer.visibility = View.GONE
             previewEmptyText.visibility = View.VISIBLE
