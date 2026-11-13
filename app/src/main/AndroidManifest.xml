@@ -35,13 +35,16 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="jp.poi.widget.ACTION_REFRESH" />
-                <action android:name="jp.poi.widget.ACTION_LAUNCH_MUSE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_info" />
         </receiver>
+
+        <!-- ウィジェットタップ更新用の内部専用レシーバー -->
+        <receiver
+            android:name=".widget.WidgetRefreshReceiver"
+            android:exported="false" />
 
     </application>
 

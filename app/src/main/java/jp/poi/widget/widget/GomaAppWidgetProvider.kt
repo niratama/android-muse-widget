@@ -9,7 +9,6 @@ import android.content.Intent
 import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
-import android.widget.Toast
 import jp.poi.widget.MainActivity
 import jp.poi.widget.R
 import jp.poi.widget.data.WidgetData
@@ -38,35 +37,7 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
         GomaSyncWorker.enqueueImmediateSync(context)
     }
 
-    override fun onReceive(context: Context, intent: Intent) {
-        super.onReceive(context, intent)
-        when (intent.action) {
-            ACTION_REFRESH -> {
-                // タップ即時更新
-                GomaSyncWorker.enqueueImmediateSync(context)
-            }
-            ACTION_LAUNCH_MUSE -> {
-                // Muse アプリの起動
-                launchMuseApp(context)
-            }
-        }
-    }
-
-    private fun launchMuseApp(context: Context) {
-        val repository = WidgetRepository.getInstance(context)
-        val packageName = repository.getMusePackageName()
-        val intent = createMuseLaunchIntent(context, packageName)
-        try {
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Toast.makeText(context, context.getString(R.string.muse_app_not_found), Toast.LENGTH_SHORT).show()
-        }
-    }
-
     companion object {
-        const val ACTION_REFRESH = "jp.poi.widget.ACTION_REFRESH"
-        const val ACTION_LAUNCH_MUSE = "jp.poi.widget.ACTION_LAUNCH_MUSE"
-
         fun createMuseLaunchIntent(context: Context, packageName: String): Intent {
             var intent = context.packageManager.getLaunchIntentForPackage(packageName)
             if (intent == null && packageName == "com.facebook.aura") {
@@ -106,9 +77,9 @@ class GomaAppWidgetProvider : AppWidgetProvider() {
             val latestData = repository.getLatestData()
             val isSyncing = repository.isSyncing()
 
-            // 1. タップで即時再取得する PendingIntent
-            val refreshIntent = Intent(context, GomaAppWidgetProvider::class.java).apply {
-                action = ACTION_REFRESH
+            // 1. タップで即時再取得する PendingIntent（内部専用レシーバーへ送信）
+            val refreshIntent = Intent(context, WidgetRefreshReceiver::class.java).apply {
+                action = WidgetRefreshReceiver.ACTION_REFRESH
             }
             val refreshPendingIntent = PendingIntent.getBroadcast(
                 context,
