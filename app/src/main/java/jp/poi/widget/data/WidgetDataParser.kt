@@ -91,7 +91,9 @@ object WidgetDataParser {
     }
 
     private fun JSONObject.optDoubleOrNull(name: String): Double? {
-        return if (has(name) && !isNull(name)) optDouble(name) else null
+        if (!has(name) || isNull(name)) return null
+        val value = optDouble(name)
+        return if (value.isNaN() || value.isInfinite()) null else value
     }
 
     private fun JSONObject.optStringOrNull(name: String): String? {

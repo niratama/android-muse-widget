@@ -284,10 +284,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadInitialSampleData() {
         try {
-            val inputStream = assets.open("widget.json")
-            val reader = BufferedReader(InputStreamReader(inputStream))
-            val jsonString = reader.readText()
-            reader.close()
+            val jsonString = assets.open("widget.json").bufferedReader().use { it.readText() }
             repository.saveSuccess(jsonString)
         } catch (e: Exception) {
             // 無視
