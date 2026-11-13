@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.FileNotFoundException
+import java.io.InputStream
 
 object DriveSyncManager {
 
@@ -23,6 +24,8 @@ object DriveSyncManager {
     const val FOLDER_NAME = "goma_widget"
     const val FILE_NAME = "widget.json"
     const val IMAGE_NAME = "goma.png"
+    private const val MAX_JSON_SIZE_BYTES = 1L * 1024 * 1024
+    private const val MAX_IMAGE_SIZE_BYTES = 20L * 1024 * 1024
 
     sealed class SyncResult {
         data class Success(val data: WidgetData) : SyncResult()
@@ -57,8 +60,8 @@ object DriveSyncManager {
                 credential
             ).setApplicationName("GomaWidget").build()
 
-            // 1. goma_widget フォルダを検索
-            val folderQuery = "name = '$FOLDER_NAME' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+            // 1. goma_widget フォルダを検索（自分が所有するフォルダのみ）
+            val folderQuery = "name = '$FOLDER_NAME' and mimeType = 'application/vnd.google-apps.folder' and 'me' in owners and trashed = false"
             val folderList = driveService.files().list()
                 .setQ(folderQuery)
                 .setSpaces("drive")
@@ -67,33 +70,8 @@ object DriveSyncManager {
 
             val folderId = folderList.files?.firstOrNull()?.id
 
-            // 2. widget.json を検索（フォルダ配下、見つからなければ全体検索フォールバック）
-            val fileQuery = if (folderId != null) {
-                "name = '$FILE_NAME' and '$folderId' in parents and trashed = false"
-            } else {
-                "name = '$FILE_NAME' and trashed = false"
-            }
-
-            var fileList = driveService.files().list()
-                .setQ(fileQuery)
-                .setSpaces("drive")
-                .setFields("files(id, name, modifiedTime)")
-                .setOrderBy("modifiedTime desc")
-                .execute()
-
-            var targetFile = fileList.files?.firstOrNull()
-
-            if (targetFile == null && folderId != null) {
-                // フォルダ外にある可能性を考慮したフォールバック検索
-                val fallbackQuery = "name = '$FILE_NAME' and trashed = false"
-                fileList = driveService.files().list()
-                    .setQ(fallbackQuery)
-                    .setSpaces("drive")
-                    .setFields("files(id, name, modifiedTime)")
-                    .setOrderBy("modifiedTime desc")
-                    .execute()
-                targetFile = fileList.files?.firstOrNull()
-            }
+            // 2. widget.json を検索（フォルダ配下、見つからなければ所有ファイル全体からフォールバック）
+            val targetFile = findOwnedFile(driveService, FILE_NAME, folderId)
 
             if (targetFile == null) {
                 val notFoundMsg = "Google Drive内に '$FOLDER_NAME/$FILE_NAME' が見つかりませんでした"
@@ -102,54 +80,43 @@ object DriveSyncManager {
                 return@withContext SyncResult.Error(notFoundMsg, FileNotFoundException(notFoundMsg))
             }
 
-            // 3. widget.json の内容をダウンロードして保存
-            val outputStream = ByteArrayOutputStream()
-            driveService.files().get(targetFile.id).executeMediaAndDownloadTo(outputStream)
-            val jsonContent = outputStream.toString("UTF-8")
+            // 3. widget.json のサイズ検証後にダウンロードして保存
+            val jsonFileSize = targetFile.getSize() ?: 0L
+            if (jsonFileSize > MAX_JSON_SIZE_BYTES) {
+                val sizeMsg = "$FILE_NAME のサイズが上限を超えています (${jsonFileSize} bytes)"
+                repository.saveFailure(sizeMsg)
+                GomaAppWidgetProvider.updateAllWidgets(context)
+                return@withContext SyncResult.Error(sizeMsg)
+            }
+
+            val jsonContent = driveService.files().get(targetFile.id)
+                .executeMediaAsInputStream().use { inStream ->
+                    readBoundedUtf8(inStream, MAX_JSON_SIZE_BYTES)
+                }
 
             val widgetData = WidgetDataParser.parse(jsonContent)
             repository.saveSuccess(jsonContent)
 
             // 4. goma.png の検索 & 差分ダウンロード（存在する場合のみ、更新日時で差分取得）
             try {
-                val imageQuery = if (folderId != null) {
-                    "name = '$IMAGE_NAME' and '$folderId' in parents and trashed = false"
-                } else {
-                    "name = '$IMAGE_NAME' and trashed = false"
-                }
-
-                var imageList = driveService.files().list()
-                    .setQ(imageQuery)
-                    .setSpaces("drive")
-                    .setFields("files(id, name, modifiedTime)")
-                    .setOrderBy("modifiedTime desc")
-                    .execute()
-
-                var targetImage = imageList.files?.firstOrNull()
-
-                if (targetImage == null && folderId != null) {
-                    // フォールバック検索
-                    val fallbackImgQuery = "name = '$IMAGE_NAME' and trashed = false"
-                    imageList = driveService.files().list()
-                        .setQ(fallbackImgQuery)
-                        .setSpaces("drive")
-                        .setFields("files(id, name, modifiedTime)")
-                        .setOrderBy("modifiedTime desc")
-                        .execute()
-                    targetImage = imageList.files?.firstOrNull()
-                }
+                val targetImage = findOwnedFile(driveService, IMAGE_NAME, folderId)
 
                 if (targetImage != null) {
-                    val remoteModifiedTime = targetImage.modifiedTime?.value ?: 0L
-                    val localModifiedTime = repository.getGomaImageModifiedTime()
-
-                    if (remoteModifiedTime == 0L || remoteModifiedTime != localModifiedTime || !repository.hasGomaImage()) {
-                        Log.i(TAG, "Downloading goma.png (modifiedTime: $remoteModifiedTime)")
-                        driveService.files().get(targetImage.id).executeMediaAsInputStream().use { inStream ->
-                            repository.saveGomaImage(inStream, remoteModifiedTime)
-                        }
+                    val imgSize = targetImage.getSize() ?: 0L
+                    if (imgSize > MAX_IMAGE_SIZE_BYTES) {
+                        Log.w(TAG, "Skipping goma.png download: size exceeds limit ($imgSize bytes)")
                     } else {
-                        Log.i(TAG, "goma.png is up to date, skipping download")
+                        val remoteModifiedTime = targetImage.modifiedTime?.value ?: 0L
+                        val localModifiedTime = repository.getGomaImageModifiedTime()
+
+                        if (remoteModifiedTime == 0L || remoteModifiedTime != localModifiedTime || !repository.hasGomaImage()) {
+                            Log.i(TAG, "Downloading goma.png (modifiedTime: $remoteModifiedTime)")
+                            driveService.files().get(targetImage.id).executeMediaAsInputStream().use { inStream ->
+                                repository.saveGomaImage(inStream, remoteModifiedTime, MAX_IMAGE_SIZE_BYTES)
+                            }
+                        } else {
+                            Log.i(TAG, "goma.png is up to date, skipping download")
+                        }
                     }
                 } else {
                     // Drive 上に画像が見つからない場合は、ローカルキャッシュも削除して非表示にする
@@ -174,5 +141,54 @@ object DriveSyncManager {
             GomaAppWidgetProvider.updateAllWidgets(context)
             SyncResult.Error(errorMsg, e)
         }
+    }
+
+    private fun findOwnedFile(
+        driveService: Drive,
+        fileName: String,
+        folderId: String?
+    ): com.google.api.services.drive.model.File? {
+        val primaryQuery = if (folderId != null) {
+            "name = '$fileName' and '$folderId' in parents and 'me' in owners and trashed = false"
+        } else {
+            "name = '$fileName' and 'me' in owners and trashed = false"
+        }
+
+        val primaryList = driveService.files().list()
+            .setQ(primaryQuery)
+            .setSpaces("drive")
+            .setFields("files(id, name, modifiedTime, size)")
+            .setOrderBy("modifiedTime desc")
+            .execute()
+
+        primaryList.files?.firstOrNull()?.let { return it }
+
+        if (folderId != null) {
+            val fallbackQuery = "name = '$fileName' and 'me' in owners and trashed = false"
+            val fallbackList = driveService.files().list()
+                .setQ(fallbackQuery)
+                .setSpaces("drive")
+                .setFields("files(id, name, modifiedTime, size)")
+                .setOrderBy("modifiedTime desc")
+                .execute()
+            return fallbackList.files?.firstOrNull()
+        }
+        return null
+    }
+
+    private fun readBoundedUtf8(inputStream: InputStream, maxBytes: Long): String {
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var total = 0L
+        while (true) {
+            val read = inputStream.read(buffer)
+            if (read == -1) break
+            total += read
+            if (total > maxBytes) {
+                throw IllegalStateException("File size exceeds limit ($maxBytes bytes)")
+            }
+            output.write(buffer, 0, read)
+        }
+        return output.toString("UTF-8")
     }
 }

@@ -89,14 +89,40 @@ class WidgetRepository(private val context: Context) {
 
     fun getGomaImageModifiedTime(): Long = prefs.getLong(KEY_GOMA_IMAGE_MODIFIED_TIME, 0L)
 
-    fun saveGomaImage(inputStream: InputStream, modifiedTimeEpochMs: Long) {
+    fun saveGomaImage(
+        inputStream: InputStream,
+        modifiedTimeEpochMs: Long,
+        maxBytes: Long = 20L * 1024 * 1024
+    ) {
         val file = getGomaFile()
-        FileOutputStream(file).use { output ->
-            inputStream.copyTo(output)
+        val tempFile = File(context.filesDir, "$GOMA_IMAGE_FILENAME.tmp")
+        try {
+            var totalBytes = 0L
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            FileOutputStream(tempFile).use { output ->
+                while (true) {
+                    val read = inputStream.read(buffer)
+                    if (read == -1) break
+                    totalBytes += read
+                    if (totalBytes > maxBytes) {
+                        throw IllegalStateException("Image size exceeds limit ($maxBytes bytes)")
+                    }
+                    output.write(buffer, 0, read)
+                }
+            }
+            if (file.exists() && !file.delete()) {
+                throw IllegalStateException("Failed to replace existing image file")
+            }
+            if (!tempFile.renameTo(file)) {
+                throw IllegalStateException("Failed to commit downloaded image file")
+            }
+            prefs.edit()
+                .putLong(KEY_GOMA_IMAGE_MODIFIED_TIME, modifiedTimeEpochMs)
+                .apply()
+        } catch (e: Exception) {
+            tempFile.delete()
+            throw e
         }
-        prefs.edit()
-            .putLong(KEY_GOMA_IMAGE_MODIFIED_TIME, modifiedTimeEpochMs)
-            .apply()
     }
 
     fun deleteGomaImage() {
