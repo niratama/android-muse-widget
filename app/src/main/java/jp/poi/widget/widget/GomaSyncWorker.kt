@@ -64,5 +64,11 @@ class GomaSyncWorker(
                 immediateWork
             )
         }
+
+        fun cancelAllSync(context: Context) {
+            val workManager = WorkManager.getInstance(context)
+            workManager.cancelUniqueWork(UNIQUE_PERIODIC_WORK_NAME)
+            workManager.cancelUniqueWork(UNIQUE_ONE_TIME_WORK_NAME)
+        }
     }
 }

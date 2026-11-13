@@ -98,8 +98,10 @@ class MainActivity : AppCompatActivity() {
         val account = GoogleSignIn.getLastSignedInAccount(this)
         updateUI(account)
 
-        // 定期同期タスクの確実な登録
-        GomaSyncWorker.schedulePeriodicSync(this)
+        // サインイン済みの場合のみ定期同期タスクを登録
+        if (account != null) {
+            GomaSyncWorker.schedulePeriodicSync(this)
+        }
     }
 
     private fun initViews() {
@@ -132,6 +134,8 @@ class MainActivity : AppCompatActivity() {
 
         btnSignOut.setOnClickListener {
             googleSignInClient.signOut().addOnCompleteListener {
+                GomaSyncWorker.cancelAllSync(this)
+                repository.clear()
                 Toast.makeText(this, "サインアウトしました", Toast.LENGTH_SHORT).show()
                 updateUI(null)
                 GomaAppWidgetProvider.updateAllWidgets(this)
