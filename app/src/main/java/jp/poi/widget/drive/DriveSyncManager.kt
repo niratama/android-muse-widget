@@ -12,7 +12,10 @@ import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccoun
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
 import com.google.api.services.drive.DriveScopes
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.FileNotFoundException
@@ -26,6 +29,7 @@ object DriveSyncManager {
     const val IMAGE_NAME = "goma.png"
     private const val MAX_JSON_SIZE_BYTES = 1L * 1024 * 1024
     private const val MAX_IMAGE_SIZE_BYTES = 20L * 1024 * 1024
+    private val syncMutex = Mutex()
 
     sealed class SyncResult {
         data class Success(val data: WidgetData) : SyncResult()
@@ -33,12 +37,13 @@ object DriveSyncManager {
     }
 
     suspend fun sync(context: Context): SyncResult = withContext(Dispatchers.IO) {
-        val repository = WidgetRepository.getInstance(context)
-        repository.setSyncing(true)
-        // ウィジェットを更新中表示に更新
-        GomaAppWidgetProvider.updateAllWidgets(context)
+        syncMutex.withLock {
+            val repository = WidgetRepository.getInstance(context)
+            repository.setSyncing(true)
+            // ウィジェットを更新中表示に更新
+            GomaAppWidgetProvider.updateAllWidgets(context)
 
-        try {
+            try {
             val account = GoogleSignIn.getLastSignedInAccount(context)
             if (account == null || account.account == null) {
                 val errorMsg = "Googleアカウントでサインインしていません"
@@ -124,6 +129,8 @@ object DriveSyncManager {
                         repository.deleteGomaImage()
                     }
                 }
+            } catch (imgEx: CancellationException) {
+                throw imgEx
             } catch (imgEx: Exception) {
                 // 画像取得の例外は JSON の更新成功を阻害しないようログのみ
                 Log.w(TAG, "Failed to sync goma.png: ${imgEx.message}")
@@ -134,12 +141,20 @@ object DriveSyncManager {
 
             Log.i(TAG, "Sync success! Updated data for: ${widgetData.date}")
             SyncResult.Success(widgetData)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "Sync error: ${e.message}", e)
             val errorMsg = e.localizedMessage ?: "Drive同期中にエラーが発生しました"
             repository.saveFailure(errorMsg)
             GomaAppWidgetProvider.updateAllWidgets(context)
             SyncResult.Error(errorMsg, e)
+        } finally {
+            if (repository.isSyncing()) {
+                repository.setSyncing(false)
+                GomaAppWidgetProvider.updateAllWidgets(context)
+            }
+        }
         }
     }
 
